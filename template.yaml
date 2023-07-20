@@ -1,0 +1,275 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: A sample template
+
+Parameters:
+  IPCidr:
+    Description: "Enter your network's global ip address CIDR. Inbound access will be allowed only from this CIDR. (e.g., '142.251.42.131/32')"
+    Type: String
+
+Resources:
+  VPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.1.0.0/16"
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub "vpcForStableDiffusion"
+
+  PublicSubnetA:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1a"
+      CidrBlock: 10.1.10.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-a"
+
+  PublicSubnetB:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1b"
+      CidrBlock: 10.1.11.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-b"
+
+  PublicSubnetC:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1c"
+      CidrBlock: 10.1.12.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-c"
+
+  PublicSubnetD:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1d"
+      CidrBlock: 10.1.13.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-d"
+
+  PublicSubnetE:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1e"
+      CidrBlock: 10.1.14.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-e"
+
+  PublicSubnetF:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: "us-east-1f"
+      CidrBlock: 10.1.15.0/24
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-subnet-f"
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+    Properties:
+      Tags:
+        - Key: Name
+          Value: "igwForStableDiffusion"
+
+  InternetGatewayAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "StableDiffusion-public-route"
+
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+    DependsOn:
+      - InternetGateway
+      - InternetGatewayAttachment
+
+  PublicSubnetARouteTableAssociationA:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociationB:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociationC:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetC
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociationD:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetD
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociationE:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetE
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetARouteTableAssociationF:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      SubnetId: !Ref PublicSubnetF
+      RouteTableId: !Ref PublicRouteTable
+
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to client host
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 7860
+          ToPort: 7860
+          CidrIp: !Ref IPCidr
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+
+  EC2AccessRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: StableDiffusionEC2AccessRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: "StableDiffusionSGAccessPolicies"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ec2:RevokeSecurityGroupEgress"
+                  - "ec2:AuthorizeSecurityGroupEgress"
+                  - "ec2:DescribeSecurityGroups"
+                  - "ec2:DescribeSecurityGroupRules"
+                Resource:
+                  - "*"
+
+  EC2AccessInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref EC2AccessRole
+
+  EC2plotLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: "ami-0d60b9becafb5eac6"
+        IamInstanceProfile:
+          Arn: !GetAtt EC2AccessInstanceProfile.Arn
+        BlockDeviceMappings:
+          - DeviceName: "/dev/sda1"
+            Ebs:
+              VolumeSize: 100
+        NetworkInterfaces:
+          - AssociatePublicIpAddress: true
+            DeviceIndex: 0
+            Groups:
+              - !Ref InstanceSecurityGroup
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            add-apt-repository ppa:deadsnakes/ppa
+            apt -qq update -y
+            apt -qq upgrade -y
+            apt install -y unzip net-tools wget git net-tools python3.10 python3.10-distutils python3.10-venv python3-pip python3-venv
+            apt install -y --no-install-recommends google-perftools
+
+            # installing awscli
+            curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+            unzip -q awscliv2.zip
+            sudo ./aws/install
+
+            # installing stable-diffusion-webui
+            mkdir -p /stable-diffusion-webui
+            git clone https://github.com/AUTOMATIC1111/stable-diffusion-webui /stable-diffusion-webui
+            python3.10 -m venv /stable-diffusion-webui/venv
+
+            # installing stable-diffusion-webui extension controlnet
+            mkdir -p /stable-diffusion-webui/extensions/sd-webui-controlnet
+            git clone https://github.com/Mikubill/sd-webui-controlnet /stable-diffusion-webui/extensions/sd-webui-controlnet
+            wget -nv https://huggingface.co/comfyanonymous/ControlNet-v1-1_fp16_safetensors/resolve/main/control_v11p_sd15_canny_fp16.safetensors -O /stable-diffusion-webui/extensions/sd-webui-controlnet/models/control_v11p_sd15_canny_fp16.safetensors
+            chown -R ubuntu /stable-diffusion-webui
+
+            # initializing stable-diffusion-webui and exit
+            sudo -u ubuntu bash -c '/stable-diffusion-webui/webui.sh --exit'
+            touch /Finished.txt
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: "StableDiffusionAutoScalingGroup"
+      VPCZoneIdentifier:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+        - !Ref PublicSubnetC
+        - !Ref PublicSubnetD
+        - !Ref PublicSubnetE
+        - !Ref PublicSubnetF
+      DesiredCapacity: "1"
+      MaxSize: "1"
+      MinSize: "1"
+      Tags:
+        - Key: Name
+          Value: "StableDiffusionServer"
+          PropagateAtLaunch: true
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandBaseCapacity: 0
+          OnDemandPercentageAboveBaseCapacity: 0
+          SpotAllocationStrategy: price-capacity-optimized
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref "EC2plotLaunchTemplate"
+            Version: !GetAtt "EC2plotLaunchTemplate.LatestVersionNumber"
+          Overrides:
+            - InstanceType: g4dn.xlarge
+            - InstanceType: g4dn.2xlarge
+            - InstanceType: g5.xlarge
+            - InstanceType: g5.2xlarge
